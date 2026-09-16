@@ -1,0 +1,39 @@
+name: Check Flight Prices
+
+on:
+  schedule:
+    # Once a day at 23:00 UTC (08:00 KST). Keep this to ONE run/day per route
+    # to stay inside SerpApi's free tier (250 searches/month).
+    - cron: "0 23 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  check-flights:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flight-tracker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore price history
+        uses: actions/cache@v4
+        with:
+          path: flight-tracker/price_history.json
+          key: price-history-${{ github.ref }}
+          restore-keys: price-history-
+
+      - name: Run price check
+        env:
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+        run: python check_flights.py

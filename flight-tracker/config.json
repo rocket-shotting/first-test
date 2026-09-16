@@ -1,0 +1,17 @@
+{
+  "currency": "KRW",
+  "language": "ko",
+  "country": "kr",
+  "routes": [
+    {
+      "name": "ICN-NRT",
+      "departure_id": "ICN",
+      "arrival_id": "NRT",
+      "outbound_date": "2026-10-20",
+      "return_date": "2026-10-24",
+      "cabin": "economy",
+      "adults": 1,
+      "price_alert_threshold": 300000
+    }
+  ]
+}
