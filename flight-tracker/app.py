@@ -10,8 +10,9 @@ import secrets
 from pathlib import Path
 
 from dotenv import load_dotenv, set_key
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
+import airports_data
 import core
 from notifier import send_email
 from serpapi_client import SerpApiError
@@ -58,6 +59,21 @@ def index():
     )
 
 
+@app.route("/api/airports")
+def api_airports():
+    query = request.args.get("q", "")
+    matches = airports_data.search(query, limit=8)
+    return jsonify(
+        [
+            {
+                "iata": e["iata"],
+                "label": airports_data.label_for_code(e["iata"]) + f" — {e['name']}, {e['country']}",
+            }
+            for e in matches
+        ]
+    )
+
+
 @app.route("/search", methods=["POST"])
 def search():
     api_key = os.environ.get("SERPAPI_KEY")
@@ -92,6 +108,59 @@ def search():
         search_results=results,
         search_error=error,
         search_link=core.fallback_booking_url(search_params),
+        departure_label=airports_data.label_for_code(search_params["departure_id"]),
+        arrival_label=airports_data.label_for_code(search_params["arrival_id"]),
+    )
+
+
+@app.route("/search-flex", methods=["POST"])
+def search_flex():
+    api_key = os.environ.get("SERPAPI_KEY")
+    if not api_key:
+        flash("SerpApi 키가 설정되지 않았습니다. 먼저 설정 페이지에서 입력하세요.", "error")
+        return redirect(url_for("settings"))
+
+    departure_id = request.form["departure_id"].strip().upper()
+    arrival_id = request.form["arrival_id"].strip().upper()
+    month_str = request.form["month"]  # "YYYY-MM"
+    nights = int(request.form.get("nights") or 0)
+    cabin = request.form.get("cabin", "economy")
+    adults = int(request.form.get("adults") or 1)
+    year, month = (int(part) for part in month_str.split("-"))
+
+    flex_results = core.scan_month(
+        api_key=api_key,
+        departure_id=departure_id,
+        arrival_id=arrival_id,
+        year=year,
+        month=month,
+        nights=nights,
+        cabin=cabin,
+        adults=adults,
+    )
+    priced = [r for r in flex_results if r["price"] is not None]
+    flex_cheapest = min(priced, key=lambda r: r["price"]) if priced else None
+
+    flex_params = {
+        "departure_id": departure_id,
+        "arrival_id": arrival_id,
+        "month": month_str,
+        "nights": nights,
+        "cabin": cabin,
+        "adults": adults,
+    }
+
+    return render_template(
+        "index.html",
+        routes=routes_with_last_price(),
+        has_key=True,
+        cabin_labels=CABIN_LABELS,
+        flex_params=flex_params,
+        flex_results=flex_results,
+        flex_cheapest=flex_cheapest,
+        flex_calls_used=len(flex_results),
+        departure_label=airports_data.label_for_code(departure_id),
+        arrival_label=airports_data.label_for_code(arrival_id),
     )
 
 

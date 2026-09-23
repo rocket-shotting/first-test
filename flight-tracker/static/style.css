@@ -73,3 +73,32 @@ th { color: #666; font-weight: 500; font-size: 12px; text-transform: uppercase; 
 }
 .actions-row { display: flex; gap: 8px; margin-top: 16px; }
 .empty { color: #888; font-size: 14px; padding: 16px 0; }
+
+.airport-field { position: relative; }
+.airport-suggestions {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #d4d5d9;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.airport-suggestions li {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.airport-suggestions li:hover,
+.airport-suggestions li.active { background: #f0f2f5; }
+
+.mode-toggle { margin-bottom: 14px; font-size: 14px; }
+.mode-toggle label { display: inline-block; margin-right: 20px; color: #333; cursor: pointer; }

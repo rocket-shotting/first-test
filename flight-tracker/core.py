@@ -102,8 +102,30 @@ def search(
     return priced
 
 
-def check_route(api_key: str, route: dict) -> dict | None:
+def cheapest_price_for_date(
+    *,
+    api_key: str,
+    departure_id: str,
+    arrival_id: str,
+    outbound_date: str,
+    return_date: str | None = None,
+    cabin: str = "economy",
+    adults: int = 1,
+) -> dict | None:
     payload = search_flights(
+        api_key=api_key,
+        departure_id=departure_id,
+        arrival_id=arrival_id,
+        outbound_date=outbound_date,
+        return_date=return_date,
+        cabin=cabin,
+        adults=adults,
+    )
+    return cheapest_summary(payload)
+
+
+def check_route(api_key: str, route: dict) -> dict | None:
+    return cheapest_price_for_date(
         api_key=api_key,
         departure_id=route["departure_id"],
         arrival_id=route["arrival_id"],
@@ -112,7 +134,67 @@ def check_route(api_key: str, route: dict) -> dict | None:
         cabin=route.get("cabin", "economy"),
         adults=route.get("adults", 1),
     )
-    return cheapest_summary(payload)
+
+
+MONTH_SCAN_INTERVAL_DAYS = 4  # ~7-8 SerpApi calls per month scan (free tier: 250/month)
+
+
+def month_candidate_dates(year: int, month: int, interval_days: int = MONTH_SCAN_INTERVAL_DAYS) -> list[str]:
+    import calendar as _calendar
+    from datetime import date as _date, timedelta as _timedelta
+
+    _, days_in_month = _calendar.monthrange(year, month)
+    d = _date(year, month, 1)
+    dates = []
+    while d.month == month:
+        dates.append(d)
+        d += _timedelta(days=interval_days)
+    return [d.isoformat() for d in dates]
+
+
+def scan_month(
+    *,
+    api_key: str,
+    departure_id: str,
+    arrival_id: str,
+    year: int,
+    month: int,
+    nights: int = 0,
+    cabin: str = "economy",
+    adults: int = 1,
+) -> list[dict]:
+    """Sample cheapest price across a month (one SerpApi call per sampled date)."""
+    from datetime import date as _date, timedelta as _timedelta
+
+    results = []
+    for outbound in month_candidate_dates(year, month):
+        return_date = None
+        if nights > 0:
+            d = _date.fromisoformat(outbound) + _timedelta(days=nights)
+            return_date = d.isoformat()
+
+        try:
+            cheapest = cheapest_price_for_date(
+                api_key=api_key,
+                departure_id=departure_id,
+                arrival_id=arrival_id,
+                outbound_date=outbound,
+                return_date=return_date,
+                cabin=cabin,
+                adults=adults,
+            )
+        except SerpApiError:
+            cheapest = None
+
+        results.append(
+            {
+                "date": outbound,
+                "return_date": return_date,
+                "price": cheapest["price"] if cheapest else None,
+                "airlines": cheapest["airlines"] if cheapest else [],
+            }
+        )
+    return results
 
 
 def evaluate_alert(route: dict, cheapest: dict, last_price: float | None) -> tuple[bool, str]:
