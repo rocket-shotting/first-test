@@ -22,8 +22,15 @@ class SerpApiError(RuntimeError):
 
 def _request(params: dict, api_key: str) -> dict:
     params = {**params, "api_key": api_key}
-    resp = requests.get(SERPAPI_BASE_URL, params=params, timeout=30)
-    resp.raise_for_status()
+    try:
+        resp = requests.get(SERPAPI_BASE_URL, params=params, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        # str(e) can embed the full request URL (query string incl. api_key) via
+        # urllib3's retry/connection-error messages — strip the key before it can
+        # end up in logs, error pages, or anything a user might screenshot.
+        raise SerpApiError(f"network request to SerpApi failed: {str(e).replace(api_key, '***')}") from None
+
     data = resp.json()
 
     error = data.get("error")

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot setup + test run for the flight tracker.
+# One-shot setup + launch for the flight tracker web UI.
 # Usage: bash setup.sh
 set -euo pipefail
 
@@ -27,6 +27,7 @@ pip install -q -r requirements.txt
 if [ ! -f .env ]; then
     echo
     echo "== Enter your credentials (input is hidden for secrets) =="
+    echo "   (you can leave any of these blank and fill them in later from the Settings page)"
 
     read -r -p "SerpApi key (from https://serpapi.com/manage-api-key): " SERPAPI_KEY
     read -r -p "Gmail address that will SEND alerts: " EMAIL_ADDRESS
@@ -43,33 +44,12 @@ NOTIFY_EMAIL=$NOTIFY_EMAIL
 EOF
     echo "-- wrote .env"
 else
-    echo "-- .env already exists, keeping it as-is"
+    echo "-- .env already exists, keeping it as-is (edit values anytime from the Settings page)"
 fi
 
 echo
-echo "== Edit config.json now if you want different routes/dates =="
-echo "   (current routes:)"
-python3 - <<'PY'
-import json
-with open("config.json", encoding="utf-8") as f:
-    cfg = json.load(f)
-for r in cfg["routes"]:
-    print(f"   - {r['name']}: {r['departure_id']} -> {r['arrival_id']} on {r['outbound_date']}"
-          + (f" ~ {r['return_date']}" if r.get('return_date') else "")
-          + f" ({r.get('cabin', 'economy')})")
-PY
-
-read -r -p $'\nPress Enter to run a console-only test check now (no email sent)...'
-python3 check_flights.py --no-email
-
+echo "== Starting the web UI =="
+echo "   Open this in your browser: http://127.0.0.1:5001"
+echo "   Press Ctrl+C here to stop the server."
 echo
-read -r -p "Run again with email alerts enabled? [y/N] " send_email
-if [[ "$send_email" =~ ^[Yy]$ ]]; then
-    python3 check_flights.py
-fi
-
-echo
-echo "Done. To run checks later:"
-echo "  cd $(pwd)"
-echo "  source .venv/bin/activate"
-echo "  python3 check_flights.py"
+python3 app.py

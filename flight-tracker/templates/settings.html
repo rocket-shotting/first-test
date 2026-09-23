@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>설정 - 항공권 가격 트래커</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>설정</h1>
+    <a class="settings-link" href="{{ url_for('index') }}">← 목록으로</a>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="card">
+    <p class="muted">여기서 입력한 값은 이 PC의 <code>.env</code> 파일에만 저장되고, 다른 어디로도 전송되지 않습니다.
+    값을 비워두고 저장하면 기존 값이 유지됩니다.</p>
+
+    <form method="post" style="display:flex; flex-direction:column; gap:16px; margin-top:16px;">
+      <div>
+        <label>SerpApi 키 {% if serpapi_key_set %}<span class="pill">설정됨</span>{% endif %}</label>
+        <input type="password" name="SERPAPI_KEY" placeholder="{{ '설정됨 - 변경하려면 새 값 입력' if serpapi_key_set else 'https://serpapi.com/manage-api-key 에서 발급' }}">
+      </div>
+      <div>
+        <label>알림을 보낼 Gmail 주소</label>
+        <input type="email" name="EMAIL_ADDRESS" placeholder="you@gmail.com" value="{{ email_address }}">
+      </div>
+      <div>
+        <label>Gmail 앱 비밀번호 {% if email_app_password_set %}<span class="pill">설정됨</span>{% endif %}</label>
+        <input type="password" name="EMAIL_APP_PASSWORD" placeholder="{{ '설정됨 - 변경하려면 새 값 입력' if email_app_password_set else 'https://myaccount.google.com/apppasswords 에서 발급' }}">
+      </div>
+      <div>
+        <label>알림 받을 이메일 주소</label>
+        <input type="email" name="NOTIFY_EMAIL" placeholder="비워두면 위 발신 주소와 동일" value="{{ notify_email }}">
+      </div>
+      <div>
+        <button type="submit">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

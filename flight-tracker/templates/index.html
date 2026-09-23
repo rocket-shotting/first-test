@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>항공권 가격 트래커</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>✈️ 항공권 가격 트래커</h1>
+    <a class="settings-link" href="{{ url_for('settings') }}">설정{{ '' if has_key else ' (API 키 필요)' }}</a>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  {% if not has_key %}
+  <div class="card">
+    <p>먼저 <a href="{{ url_for('settings') }}">설정 페이지</a>에서 SerpApi 키를 입력해야 검색할 수 있어요.</p>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2 style="margin-top:0">노선 검색</h2>
+    <form class="grid" method="post" action="{{ url_for('search') }}">
+      <div>
+        <label>출발 공항 코드</label>
+        <input type="text" name="departure_id" placeholder="ICN" maxlength="3"
+               value="{{ search_params.departure_id if search_params else '' }}" required>
+      </div>
+      <div>
+        <label>도착 공항 코드</label>
+        <input type="text" name="arrival_id" placeholder="NRT" maxlength="3"
+               value="{{ search_params.arrival_id if search_params else '' }}" required>
+      </div>
+      <div>
+        <label>출발일</label>
+        <input type="date" name="outbound_date"
+               value="{{ search_params.outbound_date if search_params else '' }}" required>
+      </div>
+      <div>
+        <label>귀국일 (편도면 비워두기)</label>
+        <input type="date" name="return_date"
+               value="{{ search_params.return_date if search_params else '' }}">
+      </div>
+      <div>
+        <label>좌석 등급</label>
+        <select name="cabin">
+          {% for value, label in cabin_labels.items() %}
+          <option value="{{ value }}" {{ 'selected' if search_params and search_params.cabin == value else '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>인원</label>
+        <input type="number" name="adults" min="1" max="9"
+               value="{{ search_params.adults if search_params else 1 }}">
+      </div>
+      <div>
+        <button type="submit">검색</button>
+      </div>
+    </form>
+  </div>
+
+  {% if search_error %}
+  <div class="card">
+    <div class="flash error">{{ search_error }}</div>
+  </div>
+  {% elif search_results is defined %}
+  <div class="card">
+    <h2 style="margin-top:0">검색 결과 ({{ search_results|length }}건)</h2>
+    {% if search_results %}
+    <table>
+      <thead>
+        <tr><th>가격</th><th>항공사</th><th>경유</th><th>소요시간</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in search_results %}
+        <tr>
+          <td class="price">{{ "{:,}".format(r.price) }} KRW</td>
+          <td>{{ r.airlines|join('/') }}</td>
+          <td>{{ r.stops }}회</td>
+          <td>{{ (r.total_duration_min or 0) // 60 }}h {{ (r.total_duration_min or 0) % 60 }}m</td>
+          <td><a href="{{ search_link }}" target="_blank" rel="noopener">Google Flights에서 보기 →</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <form method="post" action="{{ url_for('track') }}" class="grid" style="margin-top:20px; border-top:1px solid #eee; padding-top:16px;">
+      <input type="hidden" name="departure_id" value="{{ search_params.departure_id }}">
+      <input type="hidden" name="arrival_id" value="{{ search_params.arrival_id }}">
+      <input type="hidden" name="outbound_date" value="{{ search_params.outbound_date }}">
+      <input type="hidden" name="return_date" value="{{ search_params.return_date or '' }}">
+      <input type="hidden" name="cabin" value="{{ search_params.cabin }}">
+      <input type="hidden" name="adults" value="{{ search_params.adults }}">
+      <div>
+        <label>추적 노선 이름</label>
+        <input type="text" name="name" placeholder="예: 도쿄여행" required>
+      </div>
+      <div>
+        <label>알림 기준가 (KRW, 선택)</label>
+        <input type="number" name="price_alert_threshold" placeholder="예: 300000">
+      </div>
+      <div>
+        <button type="submit" class="secondary">이 노선 추적 목록에 추가</button>
+      </div>
+    </form>
+    {% else %}
+    <p class="empty">해당 조건의 항공편을 찾지 못했습니다.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2 style="margin-top:0">추적 중인 노선</h2>
+    {% if routes %}
+    <table>
+      <thead>
+        <tr><th>이름</th><th>노선</th><th>날짜</th><th>최근가</th><th>알림기준</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in routes %}
+        <tr>
+          <td>{{ r.name }}</td>
+          <td>{{ r.departure_id }} → {{ r.arrival_id }} <span class="pill">{{ r.cabin_label }}</span></td>
+          <td class="muted">{{ r.outbound_date }}{% if r.return_date %} ~ {{ r.return_date }}{% endif %}</td>
+          <td class="price">{% if r.last_price %}{{ "{:,}".format(r.last_price) }} KRW{% else %}<span class="muted">미확인</span>{% endif %}</td>
+          <td class="muted">{% if r.price_alert_threshold %}{{ "{:,}".format(r.price_alert_threshold) }} 이하{% else %}-{% endif %}</td>
+          <td>
+            <form method="post" action="{{ url_for('delete_route', name=r.name) }}" style="display:inline"
+                  onsubmit="return confirm('{{ r.name }} 노선을 삭제할까요?');">
+              <button type="submit" class="danger">삭제</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="actions-row">
+      <form method="post" action="{{ url_for('check_all') }}">
+        <button type="submit">지금 전체 가격 확인 (알림 조건 충족 시 이메일 발송)</button>
+      </form>
+    </div>
+    {% else %}
+    <p class="empty">아직 추적 중인 노선이 없습니다. 위에서 검색 후 추가해보세요.</p>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

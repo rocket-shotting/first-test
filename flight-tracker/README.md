@@ -1,65 +1,65 @@
 # Flight Tracker
 
-Tracks flight prices via [SerpApi's Google Flights engine](https://serpapi.com/google-flights-api),
-prints results to the console, and emails an alert (Gmail SMTP) when a price
-hits your threshold or drops from the last check.
+Search and track flight prices via [SerpApi's Google Flights engine](https://serpapi.com/google-flights-api).
+Comes with a local web UI (search by departure/arrival/dates, save routes to
+track, see price history) and a CLI for automation. Emails an alert (Gmail
+SMTP) when a tracked route's price hits your threshold or drops since the
+last check.
 
-## Setup
+## Setup (one command)
 
 ```bash
 cd flight-tracker
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
+bash setup.sh
 ```
 
-Fill in `.env`:
+This creates a virtualenv, installs dependencies, asks for your credentials
+on first run (or leave them blank and fill them in later from the Settings
+page in the UI), and starts the web server. Then open **http://127.0.0.1:5001**
+in your browser.
 
-| Variable | Where to get it |
+Credentials needed (all optional at setup time, required to actually search/alert):
+
+| Value | Where to get it |
 |---|---|
-| `SERPAPI_KEY` | https://serpapi.com/manage-api-key (free tier: 250 searches/month) |
-| `EMAIL_ADDRESS` | The Gmail address that sends the alert |
-| `EMAIL_APP_PASSWORD` | https://myaccount.google.com/apppasswords (requires 2-Step Verification on) |
-| `NOTIFY_EMAIL` | Address that receives alerts (can equal `EMAIL_ADDRESS`) |
+| SerpApi key | https://serpapi.com/manage-api-key (free tier: 250 searches/month) |
+| Gmail address (sender) | The Gmail account that sends alert emails |
+| Gmail App Password | https://myaccount.google.com/apppasswords (requires 2-Step Verification on) |
+| Notify email | Address that receives alerts (can be the same as the sender) |
 
-## Configure routes
+Everything is written to a local `.env` file — gitignored, never leaves your
+machine, and is never sent to SerpApi/Gmail except as normal HTTPS API calls.
 
-Edit `config.json`:
+## Using the web UI
 
-```json
-{
-  "currency": "KRW",
-  "routes": [
-    {
-      "name": "ICN-NRT",
-      "departure_id": "ICN",
-      "arrival_id": "NRT",
-      "outbound_date": "2026-10-20",
-      "return_date": "2026-10-24",
-      "cabin": "economy",
-      "adults": 1,
-      "price_alert_threshold": 300000
-    }
-  ]
-}
-```
+- **Search**: enter departure/arrival airport codes, dates, cabin, and hit
+  Search to see live results sorted by price.
+- **Track a route**: after searching, give it a name and (optionally) a
+  price-alert threshold, then "이 노선 추적 목록에 추가" adds it to
+  `config.json`.
+- **추적 중인 노선**: shows every tracked route with its last-checked price.
+  "지금 전체 가격 확인" runs a check immediately and emails you if any route's
+  price hits its threshold or dropped since the last check.
+- **설정**: update your SerpApi key / Gmail credentials at any time.
 
-- Omit `return_date` for a one-way search.
-- `cabin`: `economy` | `premium_economy` | `business` | `first`.
-- `price_alert_threshold`: alert fires when the cheapest price is at or below
-  this value. An alert also fires any time the price drops versus the
-  previous check, regardless of threshold.
-
-## Run
+## CLI (for automation / GitHub Actions)
 
 ```bash
-python check_flights.py            # check all routes, email on alert
+source .venv/bin/activate
+python check_flights.py            # check all tracked routes, email on alert
 python check_flights.py --no-email # console only, never sends mail
 python check_flights.py --route ICN-NRT
 ```
 
-Price history is kept in `price_history.json` (gitignored) so the script can
-detect drops between runs.
+Both the UI and the CLI read/write the same `config.json` (tracked routes)
+and `price_history.json` (gitignored — lets either one detect price drops
+between checks).
+
+`config.json` route fields: `departure_id`/`arrival_id` (airport codes),
+`outbound_date`/`return_date` (omit `return_date` for one-way), `cabin`
+(`economy`/`premium_economy`/`business`/`first`), `adults`,
+`price_alert_threshold` (alert fires at/below this price, or on any drop
+versus the previous check regardless of threshold).
 
 ## Quota math (free tier: 250 searches/month)
 
